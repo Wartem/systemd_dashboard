@@ -1,8 +1,25 @@
 # SystemD Dashboard
 
-A modern, secure web interface for monitoring and managing Linux systems and systemd services. This dashboard provides real-time system metrics, service management, and system control capabilities through an intuitive UI.
+A web-based interface for monitoring and managing Linux systems and systemd services. This dashboard provides system metrics, basic service management, and system control capabilities through an intuitive UI.
 
-![Dashboard Screenshot](screenshots/dashboard.png)
+<div align="center">
+  <details>
+    <summary>Click to view screenshots</summary>
+    <br>
+    <details>
+      <summary>Screenshot 1</summary>
+      <img src="https://github.com/user-attachments/assets/871a3a4f-f85b-4af5-af18-2f9c0c1fe070" width="600">
+    </details>
+    <details>
+      <summary>Screenshot 2</summary>
+      <img src="https://github.com/user-attachments/assets/2cfa200f-4f24-46c5-9768-061d045eb4e1" width="600">
+    </details>
+    <details>
+      <summary>Screenshot 3</summary>
+      <img src="https://github.com/user-attachments/assets/a006ce58-9de2-446b-8692-d977f06ed50a" width="600">
+    </details>
+  </details>
+</div>
 
 ## Features
 
@@ -33,6 +50,8 @@ A modern, secure web interface for monitoring and managing Linux systems and sys
 - Rate limiting
 - Secure session handling
 - Environment variable configuration
+
+> ⚠️ **Security Notice**: This dashboard is designed for local network use or development environments. While it includes basic security features like API key authentication and session management, it should not be exposed to the public internet without additional security measures (VPN, reverse proxy with SSL, etc.).
 
 ### Technical Highlights
 - Built with Flask
@@ -147,7 +166,7 @@ sudo journalctl -u systemd_dashboard -f
 ```
 
 ### Default Access
-- URL: http://localhost:5901
+- URL: http://localhost:5900
 - Authentication: Use API key generated during setup
 
 ## Usage Guide
@@ -261,6 +280,64 @@ chmod 600 config.json
 ProtectSystem=full
 NoNewPrivileges=true
 PrivateTmp=true
+```
+
+## Use Cases & Target Devices
+
+### Ideal Use Cases
+- **Home Lab Monitoring**: Keep track of your personal servers and development machines
+- **Raspberry Pi Projects**: Monitor your Pi-based projects, home automation systems, or media servers
+- **Local Development**: Track system resources during development and testing
+- **Small Network Monitoring**: Monitor a handful of devices in a local network environment
+- **Educational Purposes**: Learn about system monitoring, service management, and Linux administration
+
+### Recommended Devices
+1. **Raspberry Pi**
+   - Perfect for Pi 3B+ and newer
+   - Works great as a monitoring solution for Pi-based projects
+   - Lightweight enough to run alongside other services
+   - Helps monitor temperature (especially useful for Pi installations)
+
+2. **Home Servers**
+   - Small NAS systems
+   - Media servers
+   - Home automation hubs
+   - Development servers
+
+3. **Development Machines**
+   - Linux workstations
+   - Test environments
+   - Virtual machines
+   - Containers (with proper permissions)
+
+### Not Recommended For
+- Production servers exposed to the internet
+- Critical infrastructure systems
+- Large-scale deployments
+- High-security environments
+
+### Resource Requirements
+- Minimal CPU usage (~1-2% on Raspberry Pi 4)
+- Memory footprint: ~50MB
+- Storage: ~100MB including logs
+- Network: Minimal (SSE-based updates)
+
+### Example Setups
+```plaintext
+1. Raspberry Pi Home Server
+   - Running on Pi 4 with 4GB RAM
+   - Monitoring temperature and resource usage
+   - Managing services like Plex, Pi-hole, Home Assistant
+
+2. Development Environment
+   - Running on Ubuntu/Debian desktop
+   - Monitoring resource usage during development
+   - Managing Docker and development services
+
+3. Home Lab
+   - Running on a small NAS or mini PC
+   - Monitoring network traffic and storage
+   - Managing backup and media services
 ```
 
 ### Best Practices
