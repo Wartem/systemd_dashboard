@@ -1,0 +1,503 @@
+<!-- index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Enhanced System Control Panel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        {% if not session.get('authenticated') %}
+        <div class="login-container">
+            <div class="login-card">
+                <div class="brand-section">
+                    <!-- You can add your logo here -->
+                    <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--primary-color)" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 17L12 22L22 17" stroke="var(--primary-color)" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 12L12 17L22 12" stroke="var(--primary-color)" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <h1>System Control Panel</h1>
+                    <div class="subtitle">Enter your API key to access the dashboard</div>
+                </div>
+
+                {% if error %}
+                <div class="alert alert-danger">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M8 14A6 6 0 108 2a6 6 0 000 12zM8 5v3M8 11h.01" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('login') }}" class="login-form">
+                    <div class="input-group">
+                        <input type="password" name="api_key" placeholder="Enter API Key" required autocomplete="off"
+                            spellcheck="false">
+                    </div>
+                    <button type="submit" class="login-btn">
+                        Login
+                    </button>
+                </form>
+            </div>
+            <div class="version-text">Version 1.0.0</div>
+        </div>
+        {% else %}
+        <div class="dashboard">
+            <!-- System Overview Card -->
+            <div class="card system-overview">
+                <h1>{{ device_name }} System Control Panel</h1>
+
+                {% if message %}
+                <div class="alert alert-success">{{ message }}</div>
+                {% endif %}
+                {% if error %}
+                <div class="alert alert-danger">{{ error }}</div>
+                {% endif %}
+
+                <div class="system-info">
+                    <h2>System Information</h2>
+                    <table class="info-table">
+                        <tr>
+                            <td><strong>Hostname:</strong></td>
+                            <td>{{ system_info.hostname }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Platform:</strong></td>
+                            <td>{{ system_info.platform }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Uptime:</strong></td>
+                            <td>{{ status.uptime }}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="metrics-container">
+                    <div class="metric-card">
+                        <h3>CPU</h3>
+                        <div class="metric-value">{{ status.cpu_percent }}%</div>
+                        {% if status.temperature %}
+                        <div class="metric-subtitle">Temp: {{ status.temperature }}°C</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="metric-card">
+                        <h3>Memory</h3>
+                        <div class="metric-value">{{ status.memory.percent }}%</div>
+                        <div class="metric-subtitle">Used</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h3>Disk</h3>
+                        <div class="metric-value">{{ status.disk.percent }}%</div>
+                        <div class="metric-subtitle">Used</div>
+                    </div>
+                </div>
+
+                <div class="network-card">
+                    <h2>Network Statistics</h2>
+                    <div class="network-stats-grid">
+                        <div class="network-stat-item">
+                            <span class="network-stat-label">Bytes Sent</span>
+                            <span class="network-stat-value">{{ (network_info.bytes_sent / 1024 / 1024) | round(2) }}
+                                MB</span>
+                        </div>
+                        <div class="network-stat-item">
+                            <span class="network-stat-label">Bytes Received</span>
+                            <span class="network-stat-value">{{ (network_info.bytes_recv / 1024 / 1024) | round(2) }}
+                                MB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h2>Resource Usage History</h2>
+                <div class="metrics-graph">
+                    <img src="{{ url_for('metrics_plot') }}" alt="System Metrics" class="metrics-plot">
+                </div>
+
+                <div class="actions-card refresh">
+                    <div class="action-buttons-container">
+                        <button class="action-btn refresh" onclick="refreshStatus()">
+                            Refresh Status
+                        </button>
+                    </div>
+                </div>
+
+                <div class="timestamp-container">
+                    <span class="timestamp-label">Last Update:</span>
+                    <span id="timestamp-value">{{ status.timestamp }}</span>
+                </div>
+
+                <div class="actions-card">
+                    <h2>System Actions</h2>
+                    <div class="action-buttons-container">
+                        <button class="action-btn update" onclick="updateSystem()">
+                            Update System
+                        </button>
+                        <button class="action-btn reboot" onclick="handleReboot()">
+                            Reboot
+                        </button>
+                        <button class="action-btn shutdown" onclick="handleShutdown()">
+                            Shutdown
+                        </button>
+                        <button class="action-btn logout" onclick="handleLogout()">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Services Card -->
+            <div class="card services-card">
+                <h2>Services Management</h2>
+                <div class="service-search">
+                    <input type="text" id="serviceSearch" onkeyup="filterServices()" placeholder="Search services...">
+                </div>
+
+                {% if services %}
+                <div class="services-table">
+                    <table id="servicesTable">
+                        <thead>
+                            <tr>
+                                <th>Service Name</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for service in services %}
+                            <tr>
+                                <td data-label="Service Name">{{ service.name }}</td>
+                                <td data-label="Description">{{ service.description }}</td>
+                                <td data-label="Status">
+                                    <div class="status-badge status-running">Running</div>
+                                </td>
+                                <td data-label="Actions" class="action-cell">
+                                    <form action="{{ url_for('restart_service') }}" method="post"
+                                        style="display: inline;">
+                                        <input type="hidden" name="service" value="{{ service.name }}">
+                                        <button type="submit" class="btn btn-sm">Restart</button>
+                                    </form>
+                                    <button onclick="viewServiceLogs('{{ service.name }}')"
+                                        class="btn btn-sm btn-info">Logs</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Events Card -->
+            <div class="card events-card">
+                <h2>System Events</h2>
+                <div class="events-list">
+                    {% if events %}
+                    <table class="events-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in events %}
+                            <tr>
+                                <td>{{ event.timestamp }}</td>
+                                <td><span class="event-type {{ event.type }}">{{ event.type }}</span></td>
+                                <td>{{ event.description }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <div class="empty-state-text">No recent events to display</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function refreshStatus() {
+                window.location.href = "{{ url_for('refresh_status') }}";
+            }
+
+            function handleReboot() {
+                if (confirm('Are you sure you want to reboot?')) {
+                    window.location.href = "{{ url_for('reboot') }}";
+                }
+            }
+
+            function handleShutdown() {
+                if (confirm('Are you sure you want to shutdown?')) {
+                    window.location.href = "{{ url_for('shutdown') }}";
+                }
+            }
+
+            function handleLogout() {
+                window.location.href = "{{ url_for('logout') }}";
+            }
+
+            function updateSystem() {
+                if (confirm('Are you sure you want to update the system?')) {
+                    fetch('/system-update', {
+                        method: 'POST',
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.message) {
+                                alert(data.message);
+                                location.reload();
+                            } else {
+                                alert('Error: ' + data.error);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Error updating system');
+                        });
+                }
+            }
+        </script>
+
+        <!-- Service Logs Modal -->
+        <div id="logsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Service Logs: <span id="serviceNameInTitle"></span></h2></h2>
+                    <button class="close">&times;</button>
+                </div>
+                <div id="logsContent" class="logs-content"></div>
+            </div>
+        </div>
+
+        <script>
+            // Filter services
+            function filterServices() {
+                const input = document.getElementById('serviceSearch');
+                const filter = input.value.toLowerCase();
+                const table = document.getElementById('servicesTable');
+                const tr = table.getElementsByTagName('tr');
+
+                for (let i = 1; i < tr.length; i++) {
+                    const td = tr[i].getElementsByTagName('td')[0];
+                    if (td) {
+                        const txtValue = td.textContent || td.innerText;
+                        tr[i].style.display = txtValue.toLowerCase().indexOf(filter) > -1 ? '' : 'none';
+                    }
+                }
+            }
+
+            // Modal handling
+            const modal = document.getElementById('logsModal');
+            const span = document.getElementsByClassName('close')[0];
+
+            span.onclick = function () {
+                modal.style.display = 'none';
+            }
+
+            window.onclick = function (event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+
+            // View service logs
+            function viewServiceLogs(serviceName) {
+    fetch(`/service-logs/${serviceName}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.logs) {
+                document.getElementById('serviceNameInTitle').textContent = serviceName;
+                document.getElementById('logsContent').innerHTML = 
+                    `<pre>${data.logs.join('\n')}</pre>`;
+                modal.style.display = 'block';
+            } else {
+                alert('Error fetching logs');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error fetching logs');
+        });
+}
+
+            // System update
+            function updateSystem() {
+                if (confirm('Are you sure you want to update the system?')) {
+                    fetch('/system-update', {
+                        method: 'POST',
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.message) {
+                                alert(data.message);
+                                location.reload();
+                            } else {
+                                alert('Error: ' + data.error);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Error updating system');
+                        });
+                }
+            }
+        </script>
+        {% endif %}
+    </div>
+    {% if session.get('authenticated') %}
+    <script>
+        let evtSource = null;
+
+        // Initialize SSE connection
+        function initMetricsStream() {
+            if (evtSource) {
+                evtSource.close();
+            }
+
+            evtSource = new EventSource("{{ url_for('metrics_stream') }}");
+
+            evtSource.onmessage = function (event) {
+                try {
+                    const metrics = JSON.parse(event.data);
+                    updateDashboard(metrics);
+                } catch (error) {
+                    console.error("Error processing metrics:", error);
+                }
+            };
+
+            evtSource.onerror = function (err) {
+                console.error("EventSource failed:", err);
+                if (evtSource) {
+                    evtSource.close();
+                    evtSource = null;
+                }
+                // Try to reconnect after 5 seconds with exponential backoff
+                setTimeout(initMetricsStream, Math.min(5000 * Math.pow(2, retryCount), 30000));
+            };
+
+            evtSource.onopen = function () {
+                console.log("Metrics stream connected");
+            };
+        }
+
+        /*         function updateLastUpdate() {
+                    const now = new Date();
+                    const formattedTime = now.toLocaleTimeString('en-US', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                    document.getElementById('timestamp-value').textContent = formattedTime;
+                } */
+
+        // Update dashboard elements
+        function updateDashboard(metrics) {
+            // Update CPU metrics
+            const cpuValue = document.querySelector('.metric-card:nth-child(1) .metric-value');
+            if (cpuValue) {
+                const oldValue = parseFloat(cpuValue.textContent);
+                const newValue = metrics.cpu_percent.toFixed(1);
+                cpuValue.textContent = newValue + '%';
+                if (oldValue !== parseFloat(newValue)) {
+                    cpuValue.classList.add('updating');
+                    setTimeout(() => cpuValue.classList.remove('updating'), 500);
+                }
+            }
+
+            // Update Memory metrics
+            const memoryValue = document.querySelector('.metric-card:nth-child(2) .metric-value');
+            if (memoryValue) {
+                const oldValue = parseFloat(memoryValue.textContent);
+                const newValue = metrics.memory_percent.toFixed(1);
+                memoryValue.textContent = newValue + '%';
+                if (oldValue !== parseFloat(newValue)) {
+                    memoryValue.classList.add('updating');
+                    setTimeout(() => memoryValue.classList.remove('updating'), 500);
+                }
+            }
+
+            // Update Disk metrics
+            const diskValue = document.querySelector('.metric-card:nth-child(3) .metric-value');
+            if (diskValue) {
+                const oldValue = parseFloat(diskValue.textContent);
+                const newValue = metrics.disk_percent.toFixed(1);
+                diskValue.textContent = newValue + '%';
+                if (oldValue !== parseFloat(newValue)) {
+                    diskValue.classList.add('updating');
+                    setTimeout(() => diskValue.classList.remove('updating'), 500);
+                }
+            }
+
+            // Update temperature if available
+            if (metrics.temperature) {
+                const tempElement = document.querySelector('.metric-card:nth-child(1) .metric-subtitle');
+                if (tempElement) {
+                    tempElement.textContent = `Temp: ${metrics.temperature}°C`;
+                }
+            }
+
+            // Update last update time
+            const timestampElement = document.getElementById('timestamp-value');
+            if (timestampElement && metrics.timestamp) {
+                const date = new Date(metrics.timestamp);
+                const formattedTime = date.toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                timestampElement.textContent = formattedTime;
+            }
+        }
+        /* 
+                function addUpdateTimeElement() {
+                    if (!document.getElementById('last-update')) {
+                        const statusCard = document.querySelector('.system-overview');
+                        if (statusCard) {
+                            const updateTimeDiv = document.createElement('div');
+                            updateTimeDiv.className = 'text-sm text-gray-500 mt-4';
+                            updateTimeDiv.innerHTML = 'Last Update: <span id="last-update">-</span>';
+                            statusCard.appendChild(updateTimeDiv);
+                        }
+                    }
+                }
+         */
+        // Initialize everything when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initMetricsStream();
+        });
+
+        // Clean up when leaving the page
+        window.addEventListener('beforeunload', () => {
+            if (evtSource) {
+                evtSource.close();
+                evtSource = null;
+            }
+        });
+
+        /* document.querySelector('.action-btn.refresh')?.addEventListener('click', updateLastUpdate); */
+    </script>
+    {% endif %}
+</body>
+
+</html>
