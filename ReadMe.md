@@ -55,9 +55,8 @@ systemd_dashboard/
 │   └── index.html      # Dashboard template
 ├── data/               # SQLite database
 ├── logs/               # Application logs
-└── scripts/
-    ├── service_install.sh     # Service installation
-    └── setup_credentials.py   # Credential setup
+└── service_install.sh     # Service installation
+└── setup_credentials.py   # Credential setup
 ```
 
 ### Dependencies
@@ -112,13 +111,15 @@ pip install -r requirements.txt
 ```bash
 python setup_credentials.py
 ```
+Make sure to save the generated credentials for later use.
 
-3. Install systemd service:
+3. Optional - Install systemd service:
 ```bash
 bash service_install.sh
 ```
+The script ensures secure deployment and easy management of the Flask app as a system service.
 
-### Configuration
+### Optional Configuration
 
 1. Environment Variables (`.env`):
 ```plaintext
@@ -129,9 +130,7 @@ FLASK_SECRET_KEY=your_secret_key
 2. Custom Settings (`config.json`):
 ```json
 {
-    "CUSTOM_NAME": "My System Dashboard",
-    "API_KEY": "from_env_file",
-    "SECRET_KEY": "from_env_file"
+    "CUSTOM_NAME": "",
 }
 ```
 
@@ -148,7 +147,7 @@ sudo journalctl -u systemd_dashboard -f
 ```
 
 ### Default Access
-- URL: http://localhost:5903
+- URL: http://localhost:5901
 - Authentication: Use API key generated during setup
 
 ## Usage Guide
