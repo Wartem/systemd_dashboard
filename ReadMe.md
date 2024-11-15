@@ -1,8 +1,37 @@
-# SystemD Dashboard
+![Python](https://img.shields.io/badge/python-v3.7+-blue.svg)
+![Flask](https://img.shields.io/badge/flask-v2.0+-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-linux-lightgrey)
+![HTML](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![SystemD](https://img.shields.io/badge/SystemD-Compatible-blue)
+![Monitoring](https://img.shields.io/badge/Monitoring-Real--time-green)
+![Database](https://img.shields.io/badge/Database-SQLite-blue)
+![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-Compatible-C51A4A)
+![Authentication](https://img.shields.io/badge/Authentication-API%20Key-yellow)
+![UI](https://img.shields.io/badge/UI-Responsive-blue)
+![Charts](https://img.shields.io/badge/Charts-matplotlib-orange)
+![Services](https://img.shields.io/badge/Services-Management-green)
+![Theme](https://img.shields.io/badge/Theme-Dark-lightgrey)
 
-A modern, secure web interface for monitoring and managing Linux systems and systemd services. This dashboard provides real-time system metrics, service management, and system control capabilities through an intuitive UI.
+# SystemD Dashboard | Monitoring and managing Linux systems
 
-![Dashboard Screenshot](screenshots/dashboard.png)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/1a51e3b7-6584-4ba6-861d-1585f54b779e" alt="SystemD Dashboard">
+</div>
+<br>
+<br>
+
+A lightweight web-based dashboard for monitoring and managing Linux systems running SystemD. This dashboard provides real-time system metrics, service management, and system control capabilities through an intuitive UI. Designed to run as a service on local Linux systems like Raspberry Pi, home servers, or development machines, providing easy access to system monitoring and controls through your web browser.
+
+<br>
+<div align="center">
+  
+![image](https://github.com/user-attachments/assets/432c681f-34a7-4c56-b29a-b07c2aa4e4bb)
+
+![image](https://github.com/user-attachments/assets/819a0525-adf7-48c1-b9a2-3140d5c54270)
+
+</div>
 
 ## Features
 
@@ -34,6 +63,8 @@ A modern, secure web interface for monitoring and managing Linux systems and sys
 - Secure session handling
 - Environment variable configuration
 
+> ⚠️ **Security Notice**: This dashboard is designed for local network use or development environments. While it includes basic security features like API key authentication and session management, it should not be exposed to the public internet without additional security measures (VPN, reverse proxy with SSL, etc.).
+
 ### Technical Highlights
 - Built with Flask
 - Real-time updates via Server-Sent Events (SSE)
@@ -55,9 +86,8 @@ systemd_dashboard/
 │   └── index.html      # Dashboard template
 ├── data/               # SQLite database
 ├── logs/               # Application logs
-└── scripts/
-    ├── service_install.sh     # Service installation
-    └── setup_credentials.py   # Credential setup
+└── service_install.sh     # Service installation
+└── setup_credentials.py   # Credential setup
 ```
 
 ### Dependencies
@@ -112,13 +142,15 @@ pip install -r requirements.txt
 ```bash
 python setup_credentials.py
 ```
+Make sure to save the generated credentials for later use.
 
-3. Install systemd service:
+3. Optional - Install systemd service:
 ```bash
 bash service_install.sh
 ```
+The script ensures secure deployment and easy management of the Flask app as a system service.
 
-### Configuration
+### Optional Configuration
 
 1. Environment Variables (`.env`):
 ```plaintext
@@ -129,9 +161,7 @@ FLASK_SECRET_KEY=your_secret_key
 2. Custom Settings (`config.json`):
 ```json
 {
-    "CUSTOM_NAME": "My System Dashboard",
-    "API_KEY": "from_env_file",
-    "SECRET_KEY": "from_env_file"
+    "CUSTOM_NAME": "",
 }
 ```
 
@@ -148,7 +178,7 @@ sudo journalctl -u systemd_dashboard -f
 ```
 
 ### Default Access
-- URL: http://localhost:5903
+- URL: http://localhost:5900
 - Authentication: Use API key generated during setup
 
 ## Usage Guide
@@ -171,6 +201,11 @@ Click "Restart" button next to service name
 # Search services
 Use search bar above service list
 ```
+
+### Log Locations
+- Application logs: `logs/app.log`
+- Metrics database: `data/metrics.db`
+- SystemD service log: `journalctl -u systemd_dashboard`
 
 ### System Actions
 - **Update System**: Runs apt-get update/upgrade
@@ -213,35 +248,27 @@ pip install -r requirements.txt
 python app.py
 ```
 
-### Testing
-```bash
-# Run tests
-python -m pytest tests/
+## Limitations
+- Single-user authentication only
+- 24-hour metrics retention
+- Local network usage only
+- Linux/SystemD systems only
+- Requires sudo privileges for system controls
 
-# Check code style
-flake8 .
-```
+## Troubleshooting
 
-### Code Style
-- Follow PEP 8 guidelines
-- Use type hints
-- Maximum line length: 100 characters
-- Document all functions and classes
-- Clear variable naming
+### Common Issues
+1. **Permission Denied for Shutdown/Reboot**
+   - Configure sudo permissions as described in installation
 
-### Pull Request Guidelines
-1. Fork the repository
-2. Create feature branch from `main`
-3. Follow code style guidelines
-4. Add tests for new features
-5. Update documentation
-6. Submit PR with description
+2. **Metrics Graph Not Updating**
+   - Check if metrics collection service is running
+   - Verify database permissions
+   - Check application logs
 
-### Development Features
-- Debug logging enabled in development
-- Auto-reload on code changes
-- SQLite for local development
-- Mock system data available
+3. **Service Status Errors**
+   - Verify systemd permissions
+   - Check service naming
 
 ## Security
 
@@ -262,6 +289,64 @@ chmod 600 config.json
 ProtectSystem=full
 NoNewPrivileges=true
 PrivateTmp=true
+```
+
+## Use Cases & Target Devices
+
+### Ideal Use Cases
+- **Home Lab Monitoring**: Keep track of your personal servers and development machines
+- **Raspberry Pi Projects**: Monitor your Pi-based projects, home automation systems, or media servers
+- **Local Development**: Track system resources during development and testing
+- **Small Network Monitoring**: Monitor a handful of devices in a local network environment
+- **Educational Purposes**: Learn about system monitoring, service management, and Linux administration
+
+### Recommended Devices
+1. **Raspberry Pi**
+   - Perfect for Pi 3B+ and newer
+   - Works great as a monitoring solution for Pi-based projects
+   - Lightweight enough to run alongside other services
+   - Helps monitor temperature (especially useful for Pi installations)
+
+2. **Home Servers**
+   - Small NAS systems
+   - Media servers
+   - Home automation hubs
+   - Development servers
+
+3. **Development Machines**
+   - Linux workstations
+   - Test environments
+   - Virtual machines
+   - Containers (with proper permissions)
+
+### Not Recommended For
+- Production servers exposed to the internet
+- Critical infrastructure systems
+- Large-scale deployments
+- High-security environments
+
+### Resource Requirements
+- Minimal CPU usage (~1-2% on Raspberry Pi 4)
+- Memory footprint: ~50MB
+- Storage: ~100MB including logs
+- Network: Minimal (SSE-based updates)
+
+### Example Setups
+```plaintext
+1. Raspberry Pi Home Server
+   - Running on Pi 4 with 4GB RAM
+   - Monitoring temperature and resource usage
+   - Managing services like Plex, Pi-hole, Home Assistant
+
+2. Development Environment
+   - Running on Ubuntu/Debian desktop
+   - Monitoring resource usage during development
+   - Managing Docker and development services
+
+3. Home Lab
+   - Running on a small NAS or mini PC
+   - Monitoring network traffic and storage
+   - Managing backup and media services
 ```
 
 ### Best Practices
