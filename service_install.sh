@@ -40,7 +40,7 @@ MemoryLimit=256M
 
 # Hardening
 ProtectSystem=full
-NoNewPrivileges=true
+# NoNewPrivileges=true
 PrivateTmp=true
 
 [Install]

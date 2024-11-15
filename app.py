@@ -17,10 +17,10 @@ import io
 import json
 import matplotlib.pyplot as plt
 from config import load_config
-
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+import hmac
 
 DB_POOL_SIZE = 5
 db_semaphore = threading.Semaphore(DB_POOL_SIZE)
@@ -184,42 +184,6 @@ def log_event(event_type, description):
 
 _network_info_cache = None
 _network_info_timestamp = None
-def get_network_info():
-    global _network_info_cache, _network_info_timestamp
-    
-    # Return cached value if less than 5 seconds old
-    if (_network_info_cache and _network_info_timestamp and 
-        datetime.now() - _network_info_timestamp < timedelta(seconds=5)):
-        return _network_info_cache
-    
-    try:
-        net_io = psutil.net_io_counters()
-        _network_info_cache = {
-            'bytes_sent': net_io.bytes_sent,
-            'bytes_recv': net_io.bytes_recv,
-            'packets_sent': net_io.packets_sent,
-            'packets_recv': net_io.packets_recv
-        }
-        _network_info_timestamp = datetime.now()
-        return _network_info_cache
-    except Exception as e:
-        logger.error(f"Error getting network info: {str(e)}")
-        return None
-
-@lru_cache(maxsize=100)
-def get_system_info():
-    """Cache system info as it rarely changes"""
-    try:
-        return {
-            'platform': platform.platform(),
-            'python_version': platform.python_version(),
-            'processor': platform.processor(),
-            'machine': platform.machine(),
-            'hostname': platform.node()
-        }
-    except Exception as e:
-        logger.error(f"Error getting system info: {str(e)}")
-        return None
     
 class MetricsCollector:
     def __init__(self):
@@ -517,6 +481,45 @@ def get_system_status():
             "temperature": None,
             "timestamp": datetime.now()
         }
+        
+def get_error_template_data(error_message):
+    """Get safe template data for error pages"""
+    try:
+        return {
+            'status': {
+                'status': 'error',
+                'uptime': 'Not available',
+                'cpu_percent': 0,
+                'memory': {'percent': 0},
+                'disk': {'percent': 0},
+                'temperature': None,
+                'timestamp': datetime.now()
+            },
+            'system_info': {
+                'hostname': platform.node(),
+                'platform': platform.platform(),
+                'python_version': platform.python_version(),
+            },
+            'network_info': {
+                'bytes_sent': 0,
+                'bytes_recv': 0,
+                'packets_sent': 0,
+                'packets_recv': 0
+            },
+            'device_name': config.get('DEVICE_NAME', 'SystemD Dashboard'),
+            'events': [],
+            'services': [],
+            'error': error_message
+        }
+    except Exception as e:
+        logger.error(f"Error getting error template data: {str(e)}", exc_info=True)
+        return {
+            'status': {'status': 'error'},
+            'system_info': {'hostname': 'Unknown'},
+            'network_info': {'bytes_sent': 0, 'bytes_recv': 0},
+            'device_name': 'SystemD Dashboard',
+            'error': error_message
+        }
 
 def get_running_services():
     """Get running services with better error handling and logging"""
@@ -592,7 +595,7 @@ def index():
             status = get_system_status()
             services = get_running_services()  # Get services
             system_info = get_system_info()
-            network_info = get_network_info()
+            network_info = get_safe_network_info()
             device_name = config.get('DEVICE_NAME', 'SystemD Dashboard')
             
             # Debug logging
@@ -657,39 +660,65 @@ def get_metrics_history():
         return jsonify({'error': str(e)}), 500
 
 def execute_command(command, shell=False):
-    """Execute a system command with better error handling and logging"""
+    """Execute a system command with detailed error handling and logging"""
+    logger.info(f"Attempting to execute command: {command}")
+    
     try:
-        # Check if we need sudo and if we can use it without password
+        # Check current user and permissions
+        current_user = subprocess.check_output(['whoami']).decode().strip()
+        logger.info(f"Current user: {current_user}")
+        
+        # Check sudo capabilities
+        sudo_test = subprocess.run(
+            ['sudo', '-n', 'true'],
+            capture_output=True,
+            text=True
+        )
+        
+        if sudo_test.returncode != 0:
+            logger.error(f"Sudo test failed: {sudo_test.stderr}")
+            return False, "No sudo privileges. Please configure sudoers file."
+            
+        # Check if command exists
         if command[0] == 'sudo':
-            # First check if we can use sudo without password
-            test_sudo = subprocess.run(
-                ['sudo', '-n', 'true'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if test_sudo.returncode != 0:
-                logger.error("No sudo privileges without password")
-                return False, "Insufficient privileges. Please configure sudo without password for shutdown/reboot commands."
-
+            cmd_to_check = command[1]
+        else:
+            cmd_to_check = command[0]
+            
+        which_cmd = subprocess.run(
+            ['which', cmd_to_check],
+            capture_output=True,
+            text=True
+        )
+        
+        if which_cmd.returncode != 0:
+            logger.error(f"Command not found: {cmd_to_check}")
+            return False, f"Command not found: {cmd_to_check}"
+        
+        # Execute the command
+        logger.info(f"Executing command with full path: {which_cmd.stdout.strip()}")
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            timeout=30,
-            shell=shell
+            timeout=30
         )
         
+        # Log the complete output
+        logger.info(f"Command exit code: {result.returncode}")
+        logger.info(f"Command stdout: {result.stdout}")
+        logger.info(f"Command stderr: {result.stderr}")
+        
         if result.returncode != 0:
-            logger.error(f"Command failed: {result.stderr}")
-            return False, result.stderr
+            return False, f"Command failed: {result.stderr}"
         return True, result.stdout
+        
     except subprocess.TimeoutExpired:
-        logger.error("Command timed out")
-        return False, "Command timed out"
+        logger.error("Command execution timed out")
+        return False, "Command timed out after 30 seconds"
     except Exception as e:
-        logger.error(f"Error executing command: {str(e)}")
-        return False, str(e)
+        logger.error(f"Unexpected error executing command: {str(e)}", exc_info=True)
+        return False, f"Error: {str(e)}"
 
 @app.route('/service-logs/<service_name>')
 @login_required
@@ -924,7 +953,7 @@ def debug_metrics():
 @app.route('/login', methods=['POST'])
 def login():
     provided_key = request.form.get('api_key')
-    if provided_key == API_KEY or provided_key == "rack50":
+    if provided_key and hmac.compare_digest(provided_key, API_KEY):
         session['authenticated'] = True
         log_event('login', f'Successful login from {request.remote_addr}')
         return redirect(url_for('index'))
@@ -943,7 +972,7 @@ def refresh_status():
     status = get_system_status()
     services = get_running_services()
     system_info = get_system_info()  
-    network_info = get_network_info()  
+    network_info = get_safe_network_info()  
 
     # Add recent events
     events = []
@@ -963,36 +992,104 @@ def refresh_status():
                          network_info=network_info, 
                          events=events)  
 
+# Global cache for network info
+_network_info_cache = None
+_network_info_timestamp = None
+        
+def get_safe_network_info():
+    """Get network info with safe default values"""
+    try:
+        net_io = psutil.net_io_counters()
+        return {
+            'bytes_sent': net_io.bytes_sent or 0,
+            'bytes_recv': net_io.bytes_recv or 0,
+            'packets_sent': net_io.packets_sent or 0,
+            'packets_recv': net_io.packets_recv or 0
+        }
+    except Exception as e:
+        logger.error(f"Error getting network info: {str(e)}", exc_info=True)
+        return {
+            'bytes_sent': 0,
+            'bytes_recv': 0,
+            'packets_sent': 0,
+            'packets_recv': 0
+        }
+
+def get_template_data(message=None, error=None):
+    """Get all required template data with safe defaults"""
+    start_time = time.time()
+    logger.info("Gathering template data...")
+    
+    try:
+        data = {
+            'status': get_system_status(),
+            'system_info': get_system_info(),
+            'network_info': get_safe_network_info(),
+            'device_name': config.get('DEVICE_NAME', 'SystemD Dashboard'),
+            'events': get_recent_events(),
+            'services': get_running_services()
+        }
+        
+        if message:
+            data['message'] = message
+            logger.info(f"Template message: {message}")
+        if error:
+            data['error'] = error
+            logger.error(f"Template error: {error}")
+            
+        logger.info(f"Template data gathered in {time.time() - start_time:.2f} seconds")
+        return data
+        
+    except Exception as e:
+        logger.error(f"Error gathering template data: {str(e)}", exc_info=True)
+        # Return minimal safe data
+        return {
+            'status': {'status': 'error'},
+            'system_info': {'hostname': 'unknown'},
+            'network_info': get_safe_network_info(),
+            'device_name': 'SystemD Dashboard',
+            'events': [],
+            'services': [],
+            'error': f"System error: {str(e)}"
+        }
+        
 @app.route('/shutdown', methods=['GET'])
 @login_required
 def shutdown():
     logger.info('Shutdown requested')
     
     try:
-        # Try systemctl first
-        success, message = execute_command(['sudo', 'systemctl', 'poweroff'])
-        if not success:
-            # Fallback to shutdown command
-            success, message = execute_command(['sudo', 'shutdown', '-h', 'now'])
+        # Try different shutdown methods
+        methods = [
+            ['sudo', 'systemctl', 'poweroff'],
+            ['sudo', 'shutdown', '-h', 'now'],
+            ['sudo', 'poweroff']
+        ]
         
-        if success:
-            log_event('system_shutdown', 'System shutdown initiated')
-            return render_template('index.html', 
-                                message="System is shutting down...",
-                                status=get_system_status(),
-                                system_info=get_system_info())
-        else:
-            log_event('error', f'Shutdown failed: {message}')
-            return render_template('index.html', 
-                                error=f"Failed to shutdown: {message}",
-                                status=get_system_status(),
-                                system_info=get_system_info())
+        for method in methods:
+            logger.info(f"Trying shutdown method: {method}")
+            success, message = execute_command(method)
+            if success:
+                log_event('system_shutdown', f'System shutdown initiated using {method[0]}')
+                template_data = get_template_data()
+                template_data['message'] = "System is shutting down..."
+                return render_template('index.html', **template_data)
+            else:
+                logger.error(f"Method {method} failed: {message}")
+        
+        # If we get here, all methods failed
+        error_msg = "All shutdown methods failed. Check system logs and permissions."
+        logger.error(error_msg)
+        template_data = get_template_data()
+        template_data['error'] = error_msg
+        return render_template('index.html', **template_data)
+                            
     except Exception as e:
-        logger.error(f"Shutdown error: {str(e)}")
-        return render_template('index.html', 
-                            error=f"Error during shutdown: {str(e)}",
-                            status=get_system_status(),
-                            system_info=get_system_info())
+        error_msg = f"Shutdown error: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        template_data = get_template_data()
+        template_data['error'] = error_msg
+        return render_template('index.html', **template_data)
 
 @app.route('/reboot', methods=['GET'])
 @login_required
@@ -1000,30 +1097,75 @@ def reboot():
     logger.info('Reboot requested')
     
     try:
-        # Try systemctl first
-        success, message = execute_command(['sudo', 'systemctl', 'reboot'])
-        if not success:
-            # Fallback to reboot command
-            success, message = execute_command(['sudo', 'reboot'])
+        # First check if we can use sudo
+        logger.info("Checking sudo privileges...")
+        sudo_test = subprocess.run(
+            ['sudo', '-n', 'true'],
+            capture_output=True,
+            text=True
+        )
         
-        if success:
-            log_event('system_reboot', 'System reboot initiated')
-            return render_template('index.html', 
-                                message="System is rebooting...",
-                                status=get_system_status(),
-                                system_info=get_system_info())
-        else:
-            log_event('error', f'Reboot failed: {message}')
-            return render_template('index.html', 
-                                error=f"Failed to reboot: {message}",
-                                status=get_system_status(),
-                                system_info=get_system_info())
+        if sudo_test.returncode != 0:
+            error_msg = "Insufficient privileges. Please configure sudo without password for reboot command."
+            logger.error(f"Sudo check failed: {sudo_test.stderr}")
+            return render_template('index.html', **get_template_data(error=error_msg))
+        
+        # Try reboot methods
+        methods = [
+            ['sudo', 'systemctl', 'reboot'],
+            ['sudo', 'reboot'],
+            ['sudo', 'shutdown', '-r', 'now']
+        ]
+        
+        for method in methods:
+            logger.info(f"Attempting reboot with: {' '.join(method)}")
+            try:
+                result = subprocess.run(method, capture_output=True, text=True, timeout=30)
+                if result.returncode == 0:
+                    success_msg = f"System reboot initiated using {method[0]}"
+                    logger.info(success_msg)
+                    log_event('system_reboot', success_msg)
+                    return render_template('index.html', 
+                                        **get_template_data(message="System is rebooting..."))
+                logger.error(f"Method {method} failed with return code {result.returncode}")
+                logger.error(f"Command output: {result.stdout}")
+                logger.error(f"Command error: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                logger.error(f"Command timeout after 30 seconds: {' '.join(method)}")
+            except Exception as e:
+                logger.error(f"Error executing {method}: {str(e)}", exc_info=True)
+            continue
+        
+        # If we get here, all methods failed
+        error_msg = "All reboot methods failed. Check system logs and permissions."
+        logger.error(error_msg)
+        return render_template('index.html', **get_template_data(error=error_msg))
+                            
     except Exception as e:
-        logger.error(f"Reboot error: {str(e)}")
-        return render_template('index.html', 
-                            error=f"Error during reboot: {str(e)}",
-                            status=get_system_status(),
-                            system_info=get_system_info())
+        error_msg = f"Reboot error: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return render_template('index.html', **get_template_data(error=error_msg))
+
+@lru_cache(maxsize=100)
+def get_system_info():
+    """Get system information with caching and error handling"""
+    try:
+        return {
+            'platform': platform.platform(),
+            'python_version': platform.python_version(),
+            'processor': platform.processor(),
+            'machine': platform.machine(),
+            'hostname': platform.node()
+        }
+    except Exception as e:
+        logger.error(f"Error getting system info: {str(e)}", exc_info=True)
+        return {
+            'platform': 'Unknown',
+            'python_version': 'Unknown',
+            'processor': 'Unknown',
+            'machine': 'Unknown',
+            'hostname': 'Unknown'
+        }
 
 @app.route('/restart-service', methods=['POST'])
 @login_required
@@ -1035,7 +1177,7 @@ def restart_service():
                              status=get_system_status(),
                              services=get_running_services(),
                              system_info=get_system_info(),
-                             network_info=get_network_info(),
+                             network_info=get_safe_network_info(),
                              device_name=config.get('DEVICE_NAME', 'SystemD Dashboard'),
                              events=get_recent_events())  
     
@@ -1045,7 +1187,7 @@ def restart_service():
                              status=get_system_status(),
                              services=get_running_services(),
                              system_info=get_system_info(),
-                             network_info=get_network_info(),
+                             network_info=get_safe_network_info(),
                              device_name=config.get('DEVICE_NAME', 'SystemD Dashboard'),
                              events=get_recent_events())  
     
@@ -1056,7 +1198,7 @@ def restart_service():
     status = get_system_status()
     services = get_running_services()
     system_info = get_system_info()
-    network_info = get_network_info()
+    network_info = get_safe_network_info()
     events = get_recent_events()  
 
     if success:
@@ -1107,10 +1249,10 @@ if __name__ == '__main__':
         serve(app, 
             host='0.0.0.0',
             port=PORT,
-            threads=4,
+            threads=8,
             connection_limit=100,
-            channel_timeout=30,
-            cleanup_interval=30,
+            channel_timeout=60,
+            cleanup_interval=60,
             ident='SystemD Dashboard')
     finally:
         metrics_collector.stop()

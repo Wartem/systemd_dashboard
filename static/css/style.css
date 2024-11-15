@@ -221,16 +221,6 @@ body {
     width: 30%;
 }
 
-.status-badge.status-running::before {
-    content: "";
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    background-color: var(--success-color);
-    border-radius: 50%;
-    margin-right: 6px;
-}
-
 .service-search {
     margin: 1.2rem 0;
     width: 100%;
@@ -809,7 +799,7 @@ h2 {
     color: var(--text-secondary);
     font-family: 'Roboto Mono', monospace;
     padding-right: 32px;
-    font-weight: 500;  
+    font-weight: 500;
     font-size: 0.9rem;
 }
 
@@ -902,8 +892,6 @@ h2 {
     background-color: rgba(111, 66, 193, 0.1);
     color: #6f42c1;
 }
-
-
 
 
 /* LOGIN */
@@ -1164,8 +1152,8 @@ input:-webkit-autofill:focus {
     .events-table td:first-child {
         padding-bottom: 12px;
         margin-right: 100px;
-        font-size: 2rem
-;        /* Make space for the badge */
+        font-size: 1rem;
+        /* Make space for the badge */
     }
 
     /* Event type badge */
@@ -1255,7 +1243,7 @@ input:-webkit-autofill:focus {
         font-size: 1.1rem;
         font-weight: 600;
         color: var(--text-primary);
-        padding-right: 100px;
+        padding-right: 1.25rem;
         margin-bottom: 0.25rem;
     }
 
@@ -1325,10 +1313,6 @@ input:-webkit-autofill:focus {
         border-radius: 50%;
         margin-right: 6px;
         flex-shrink: 0;
-    }
-
-    .status-badge.status-running::before {
-        background-color: var(--success-color);
     }
 
     .status-badge.status-stopped::before {
