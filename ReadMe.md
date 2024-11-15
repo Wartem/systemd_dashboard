@@ -33,6 +33,8 @@ A lightweight web-based dashboard for monitoring and managing Linux systems runn
 
 </div>
 
+<br>
+
 ## Features
 
 - **Real-time System Monitoring**
@@ -180,6 +182,29 @@ sudo journalctl -u systemd_dashboard -f
 ### Default Access
 - URL: http://localhost:5900
 - Authentication: Use API key generated during setup
+
+### Sudo without password
+You need to configure sudo to allow these specific commands without a password. Here's how to set it up:
+
+1. First, create a file for the sudo configuration:
+```bash
+sudo visudo -f /etc/sudoers.d/systemd-dashboard
+```
+
+2. Add these lines (replace `your_username` with the actual username running the Flask app):
+```
+your_username ALL=(ALL) NOPASSWD: /usr/sbin/reboot
+your_username ALL=(ALL) NOPASSWD: /usr/sbin/shutdown
+your_username ALL=(ALL) NOPASSWD: /usr/bin/systemctl poweroff
+your_username ALL=(ALL) NOPASSWD: /usr/bin/systemctl reboot
+```
+
+3. Save and exit (in visudo, usually Ctrl+X, then Y, then Enter)
+
+4. Set proper permissions:
+```bash
+sudo chmod 440 /etc/sudoers.d/systemd-dashboard
+```
 
 ## Usage Guide
 
