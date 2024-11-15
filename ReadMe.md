@@ -52,8 +52,8 @@ A lightweight web-based dashboard for monitoring and managing Linux systems runn
   - Search and filter services
 
 - **System Control**
-  - System updates
   - Reboot/shutdown controls
+  - ~~System updates~~
   - Secure authentication
   - Event logging
   - Mobile-responsive interface
@@ -233,9 +233,9 @@ Use search bar above service list
 - SystemD service log: `journalctl -u systemd_dashboard`
 
 ### System Actions
-- **Update System**: Runs apt-get update/upgrade
 - **Reboot**: Safely restarts system
 - **Shutdown**: Powers down system
+- ~~**Update System**: Runs apt-get update/upgrade~~
 - **Service Control**: Start/stop/restart individual services
 
 ### Alert Monitoring
