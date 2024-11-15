@@ -22,7 +22,7 @@
 <br>
 <br>
 
-A web-based interface for monitoring and managing Linux systems and systemd services. This dashboard provides system metrics, basic service management, and system control capabilities through an intuitive UI.
+A lightweight web-based dashboard for monitoring and managing Linux systems running SystemD. This dashboard provides real-time system metrics, service management, and system control capabilities through an intuitive UI. Designed to run as a service on local Linux systems like Raspberry Pi, home servers, or development machines, providing easy access to system monitoring and controls through your web browser.
 
 <br>
 <div align="center">
