@@ -14,7 +14,7 @@
 ![Services](https://img.shields.io/badge/Services-Management-green)
 ![Theme](https://img.shields.io/badge/Theme-Dark-lightgrey)
 
-# SystemD Dashboard
+# SystemD Dashboard | Monitoring and managing Linux systems
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/1a51e3b7-6584-4ba6-861d-1585f54b779e" alt="SystemD Dashboard">
