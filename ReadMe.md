@@ -1,24 +1,36 @@
+![Python](https://img.shields.io/badge/python-v3.7+-blue.svg)
+![Flask](https://img.shields.io/badge/flask-v2.0+-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-linux-lightgrey)
+![HTML](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![SystemD](https://img.shields.io/badge/SystemD-Compatible-blue)
+![Monitoring](https://img.shields.io/badge/Monitoring-Real--time-green)
+![Database](https://img.shields.io/badge/Database-SQLite-blue)
+![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-Compatible-C51A4A)
+![Authentication](https://img.shields.io/badge/Authentication-API%20Key-yellow)
+![UI](https://img.shields.io/badge/UI-Responsive-blue)
+![Charts](https://img.shields.io/badge/Charts-matplotlib-orange)
+![Services](https://img.shields.io/badge/Services-Management-green)
+![Theme](https://img.shields.io/badge/Theme-Dark-lightgrey)
+
 # SystemD Dashboard
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/1a51e3b7-6584-4ba6-861d-1585f54b779e" alt="SystemD Dashboard">
+</div>
+<br>
+<br>
 
 A web-based interface for monitoring and managing Linux systems and systemd services. This dashboard provides system metrics, basic service management, and system control capabilities through an intuitive UI.
 
+<br>
 <div align="center">
-  <details>
-    <summary>Click to view screenshots</summary>
-    <br>
-    <details>
-      <summary>Screenshot 1</summary>
-      <img src="https://github.com/user-attachments/assets/871a3a4f-f85b-4af5-af18-2f9c0c1fe070" width="600">
-    </details>
-    <details>
-      <summary>Screenshot 2</summary>
-      <img src="https://github.com/user-attachments/assets/2cfa200f-4f24-46c5-9768-061d045eb4e1" width="600">
-    </details>
-    <details>
-      <summary>Screenshot 3</summary>
-      <img src="https://github.com/user-attachments/assets/a006ce58-9de2-446b-8692-d977f06ed50a" width="600">
-    </details>
-  </details>
+  
+![image](https://github.com/user-attachments/assets/432c681f-34a7-4c56-b29a-b07c2aa4e4bb)
+
+![image](https://github.com/user-attachments/assets/819a0525-adf7-48c1-b9a2-3140d5c54270)
+
 </div>
 
 ## Features
@@ -190,6 +202,11 @@ Click "Restart" button next to service name
 Use search bar above service list
 ```
 
+### Log Locations
+- Application logs: `logs/app.log`
+- Metrics database: `data/metrics.db`
+- SystemD service log: `journalctl -u systemd_dashboard`
+
 ### System Actions
 - **Update System**: Runs apt-get update/upgrade
 - **Reboot**: Safely restarts system
@@ -231,35 +248,27 @@ pip install -r requirements.txt
 python app.py
 ```
 
-### Testing
-```bash
-# Run tests
-python -m pytest tests/
+## Limitations
+- Single-user authentication only
+- 24-hour metrics retention
+- Local network usage only
+- Linux/SystemD systems only
+- Requires sudo privileges for system controls
 
-# Check code style
-flake8 .
-```
+## Troubleshooting
 
-### Code Style
-- Follow PEP 8 guidelines
-- Use type hints
-- Maximum line length: 100 characters
-- Document all functions and classes
-- Clear variable naming
+### Common Issues
+1. **Permission Denied for Shutdown/Reboot**
+   - Configure sudo permissions as described in installation
 
-### Pull Request Guidelines
-1. Fork the repository
-2. Create feature branch from `main`
-3. Follow code style guidelines
-4. Add tests for new features
-5. Update documentation
-6. Submit PR with description
+2. **Metrics Graph Not Updating**
+   - Check if metrics collection service is running
+   - Verify database permissions
+   - Check application logs
 
-### Development Features
-- Debug logging enabled in development
-- Auto-reload on code changes
-- SQLite for local development
-- Mock system data available
+3. **Service Status Errors**
+   - Verify systemd permissions
+   - Check service naming
 
 ## Security
 
