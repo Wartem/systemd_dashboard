@@ -7,7 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <title>Enhanced System Control Panel</title>
+    <title>SystemD Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
 </head>
 
@@ -26,7 +26,7 @@
                         <path d="M2 12L12 17L22 12" stroke="var(--primary-color)" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    <h1>System Control Panel</h1>
+                    <h1>SystemD Dashboard</h1>
                     <div class="subtitle">Enter your API key to access the dashboard</div>
                 </div>
 
@@ -56,7 +56,7 @@
         <div class="dashboard">
             <!-- System Overview Card -->
             <div class="card system-overview">
-                <h1>{{ device_name }} System Control Panel</h1>
+                <h1>{{ device_name }} SystemD Dashboard</h1>
 
                 {% if message %}
                 <div class="alert alert-success">{{ message }}</div>

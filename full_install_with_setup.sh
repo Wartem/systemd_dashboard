@@ -5,7 +5,7 @@
 # Exit on any error
 set -e
 
-echo "=== System Control Panel Installation ==="
+echo "=== SystemD Dashboard Installation ==="
 
 echo "For manual installation, run these commands in order:"
 echo "1. python3 -m venv .venv                   # Creates Python virtual environment"

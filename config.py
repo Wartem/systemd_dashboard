@@ -24,7 +24,7 @@ def get_device_name():
     try:
         return platform.node()
     except:
-        return "System Control Panel"
+        return "SystemD Dashboard"
 
 def generate_secure_key():
     """Generate a cryptographically secure key"""

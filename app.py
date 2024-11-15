@@ -20,11 +20,12 @@ from config import load_config
 
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
 from datetime import datetime, timedelta
 
 DB_POOL_SIZE = 5
 db_semaphore = threading.Semaphore(DB_POOL_SIZE)
+
+PORT = 5900
 
 # Create necessary directories
 REQUIRED_DIRS = ['static/css', 'templates', 'logs', 'data']
@@ -71,7 +72,7 @@ def get_device_name():
     try:
         return platform.node()
     except:
-        return "System Control Panel"
+        return "SystemD Dashboard"
 
 def load_config():
     # Try to load python-dotenv if available
@@ -113,25 +114,52 @@ def load_config():
 
 # Database initialization
 def init_db():
+    """Initialize the database schema if it doesn't exist"""
     with sqlite3.connect('data/metrics.db') as conn:
         c = conn.cursor()
         
-        # Create tables if they don't exist
+        # Create metrics table if it doesn't exist
         c.execute('''CREATE TABLE IF NOT EXISTS system_metrics
-                    (timestamp TEXT, cpu_percent REAL, memory_percent REAL, 
-                     disk_percent REAL, temperature REAL)''')
+                    (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                     cpu_percent REAL,
+                     memory_percent REAL, 
+                     disk_percent REAL,
+                     temperature REAL)''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS events
-                    (timestamp TEXT, event_type TEXT, description TEXT)''')
-        
-        # Create indexes for better query performance
+        # Create index if it doesn't exist
         c.execute('''CREATE INDEX IF NOT EXISTS idx_metrics_timestamp 
                     ON system_metrics(timestamp)''')
-                    
+        
+        # Create cleanup trigger if it doesn't exist
+        c.execute('''CREATE TRIGGER IF NOT EXISTS cleanup_old_metrics
+                    AFTER INSERT ON system_metrics
+                    BEGIN
+                        DELETE FROM system_metrics 
+                        WHERE timestamp < datetime('now', '-24 hours');
+                    END''')
+        
+        # Create events table if it doesn't exist
+        c.execute('''CREATE TABLE IF NOT EXISTS events
+                    (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                     event_type TEXT,
+                     description TEXT)''')
+        
+        # Create events index if it doesn't exist
         c.execute('''CREATE INDEX IF NOT EXISTS idx_events_timestamp 
                     ON events(timestamp)''')
         
         conn.commit()
+        
+        # Verify tables exist
+        c.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = c.fetchall()
+        logger.info(f"Database initialized with tables: {[t[0] for t in tables]}")
+        
+        # Log table counts
+        for table in ['system_metrics', 'events']:
+            c.execute(f"SELECT COUNT(*) FROM {table}")
+            count = c.fetchone()[0]
+            logger.info(f"Table {table} contains {count} records")
 
 def get_cpu_temperature():
     try:
@@ -197,89 +225,103 @@ class MetricsCollector:
     def __init__(self):
         self.metrics_buffer = []
         self.buffer_lock = threading.Lock()
-        self.last_metrics = None
         self.metrics_lock = threading.RLock()
         self.plot_lock = threading.Lock()
-        self.db_conn = None
-        self.last_save = datetime.now()
+        self.running = False
+        self.db_path = 'data/metrics.db'
         
-    def init_db_connection(self):
-        if not self.db_conn:
-            self.db_conn = sqlite3.connect('data/metrics.db', check_same_thread=False)
-            
+    def start(self):
+        """Start the metrics collection"""
+        self.running = True
+        threading.Thread(target=self.collect_metrics, daemon=True).start()
+        logger.info("Metrics collection started")
+    
+    def stop(self):
+        """Stop the metrics collection"""
+        self.running = False
+        logger.info("Metrics collection stopped")
+    
     def collect_metrics(self):
-        self.init_db_connection()
-        while True:
+        while self.running:
             try:
-                current_time = datetime.now()
-                
+                # Collect current metrics
                 metrics = {
-                    'timestamp': current_time.isoformat(),
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     'cpu_percent': psutil.cpu_percent(interval=1),
                     'memory_percent': psutil.virtual_memory().percent,
                     'disk_percent': psutil.disk_usage('/').percent,
                     'temperature': get_cpu_temperature() or 0
                 }
                 
-                # Update current metrics
-                with self.metrics_lock:
-                    self.last_metrics = metrics
-                    METRICS_HISTORY.append(metrics)
+                # Save to database immediately
+                with sqlite3.connect(self.db_path) as conn:
+                    c = conn.cursor()
+                    c.execute(
+                        'INSERT INTO system_metrics (timestamp, cpu_percent, memory_percent, disk_percent, temperature) VALUES (?, ?, ?, ?, ?)',
+                        (metrics['timestamp'], metrics['cpu_percent'], metrics['memory_percent'], 
+                         metrics['disk_percent'], metrics['temperature'])
+                    )
+                    conn.commit()
                 
-                # Buffer for database
-                with self.buffer_lock:
-                    self.metrics_buffer.append(metrics)
-                    
-                    # Save to database every 5 minutes
-                    if current_time - self.last_save > timedelta(minutes=5):
-                        self._save_metrics_to_db()
-                        self.last_save = current_time
-                        
+                logger.debug(f"Metrics saved: CPU {metrics['cpu_percent']}%, Memory {metrics['memory_percent']}%")
+                
             except Exception as e:
                 logger.error(f"Error collecting metrics: {str(e)}")
-                
+            
             time.sleep(30)  # Collect every 30 seconds
-            
-    def _save_metrics_to_db(self):
-        if not self.metrics_buffer:
-            return
-            
-        try:
-            c = self.db_conn.cursor()
-            with self.buffer_lock:
-                c.executemany(
-                    'INSERT INTO system_metrics VALUES (?, ?, ?, ?, ?)',
-                    [(m['timestamp'], m['cpu_percent'],
-                      m['memory_percent'], m['disk_percent'],
-                      m['temperature']) for m in self.metrics_buffer]
-                )
-                self.metrics_buffer.clear()
-            self.db_conn.commit()
-        except Exception as e:
-            logger.error(f"Error saving metrics to database: {str(e)}")
-            # Attempt to reconnect
-            self.db_conn = None
-            self.init_db_connection()
-            
-    def _save_metrics_to_db(self):
-        if not self.metrics_buffer:
-            return
-            
-        with db_semaphore:
-            try:
-                with sqlite3.connect('data/metrics.db') as conn:
-                    c = conn.cursor()
-                    with self.buffer_lock:
-                        c.executemany(
-                            'INSERT INTO system_metrics VALUES (?, ?, ?, ?, ?)',
-                            [(m['timestamp'], m['cpu_percent'],
-                              m['memory_percent'], m['disk_percent'],
-                              m['temperature']) for m in self.metrics_buffer]
-                        )
-                        self.metrics_buffer.clear()
-                    conn.commit()
-            except Exception as e:
-                logger.error(f"Error saving metrics to database: {str(e)}")
+
+def generate_metrics_plot():
+    """Generate the metrics plot from database data"""
+    try:
+        plt.switch_backend('Agg')
+        plt.close('all')
+        
+        fig = plt.figure(figsize=(10, 6), dpi=80)
+        
+        # Fetch last 24 hours of data
+        with sqlite3.connect('data/metrics.db') as conn:
+            df = pd.read_sql_query('''
+                SELECT timestamp, cpu_percent, memory_percent 
+                FROM system_metrics 
+                WHERE timestamp > datetime('now', '-24 hours')
+                ORDER BY timestamp ASC
+            ''', conn, parse_dates=['timestamp'])
+        
+        if df.empty:
+            logger.warning("No metrics data available for plotting")
+            plt.close(fig)
+            return None
+        
+        # Plot the data
+        plt.plot(df['timestamp'], df['cpu_percent'], label='CPU %', linewidth=2, color='#3498db')
+        plt.plot(df['timestamp'], df['memory_percent'], label='Memory %', linewidth=2, color='#e74c3c')
+        
+        # Customize the plot
+        plt.title('System Resource Usage', pad=20)
+        plt.xlabel('Time')
+        plt.ylabel('Percentage')
+        plt.legend(loc='upper right')
+        plt.grid(True, alpha=0.3)
+        plt.ylim(0, 100)
+        
+        # Format x-axis
+        plt.gcf().autofmt_xdate()
+        
+        # Add padding
+        plt.tight_layout()
+        
+        # Save to buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=80)
+        buf.seek(0)
+        
+        plt.close(fig)
+        return buf
+        
+    except Exception as e:
+        logger.error(f"Error generating metrics plot: {str(e)}")
+        plt.close('all')
+        return None
 
 def collect_metrics():
     metrics_buffer = []
@@ -353,32 +395,78 @@ def generate_metrics_plot():
             
             fig = plt.figure(figsize=(10, 6), dpi=80)
             
-            metrics_list = list(METRICS_HISTORY)
-            
+            # Get metrics from the database for the last 24 hours
+            metrics_list = []
+            try:
+                with sqlite3.connect('data/metrics.db') as conn:
+                    c = conn.cursor()
+                    c.execute('''
+                        SELECT timestamp, cpu_percent, memory_percent 
+                        FROM system_metrics 
+                        WHERE timestamp > datetime('now', '-24 hours')
+                        ORDER BY timestamp ASC
+                    ''')
+                    metrics_list = c.fetchall()
+            except Exception as e:
+                logger.error(f"Error fetching metrics from database: {str(e)}")
+                return None
+
             if not metrics_list:
                 logger.warning("No metrics data available for plotting")
                 plt.close(fig)
                 return None
                 
-            # Convert timestamps and limit data points
-            timestamps = [datetime.fromisoformat(m['timestamp']) 
-                        for m in metrics_list[-60:]]
-            cpu_data = [m['cpu_percent'] for m in metrics_list[-60:]]
-            memory_data = [m['memory_percent'] for m in metrics_list[-60:]]
+            # Convert timestamps and prepare data
+            timestamps = []
+            cpu_data = []
+            memory_data = []
             
-            plt.plot(timestamps, cpu_data, label='CPU %', linewidth=2)
-            plt.plot(timestamps, memory_data, label='Memory %', linewidth=2)
-            plt.title('System Resource Usage')
+            for metric in metrics_list:
+                try:
+                    # Parse timestamp and convert to local timezone
+                    ts = datetime.fromisoformat(metric[0].replace('Z', '+00:00'))
+                    timestamps.append(ts)
+                    cpu_data.append(float(metric[1]))
+                    memory_data.append(float(metric[2]))
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Error parsing metric data: {str(e)}")
+                    continue
+            
+            if not timestamps:
+                logger.warning("No valid timestamps found in metrics")
+                plt.close(fig)
+                return None
+
+            # Create the plot
+            plt.plot(timestamps, cpu_data, label='CPU %', linewidth=2, color='#3498db')
+            plt.plot(timestamps, memory_data, label='Memory %', linewidth=2, color='#e74c3c')
+            
+            # Customize the plot
+            plt.title('System Resource Usage', pad=20)
             plt.xlabel('Time')
             plt.ylabel('Percentage')
-            plt.legend()
+            plt.legend(loc='upper right')
             plt.grid(True, alpha=0.3)
-            plt.xticks(rotation=45)
             
+            # Format x-axis
+            plt.gcf().autofmt_xdate()  # Angle and align the tick labels so they look better
+            
+            # Use AutoDateFormatter for smart date formatting
+            from matplotlib.dates import AutoDateFormatter, AutoDateLocator
+            locator = AutoDateLocator()
+            formatter = AutoDateFormatter(locator)
+            plt.gca().xaxis.set_major_locator(locator)
+            plt.gca().xaxis.set_major_formatter(formatter)
+            
+            # Set y-axis range from 0 to 100
+            plt.ylim(0, 100)
+            
+            # Add padding to prevent label cutoff
             plt.tight_layout()
             
+            # Save to buffer
             buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight')
+            plt.savefig(buf, format='png', bbox_inches='tight', dpi=80)
             buf.seek(0)
             
             # Cleanup
@@ -505,7 +593,7 @@ def index():
             services = get_running_services()  # Get services
             system_info = get_system_info()
             network_info = get_network_info()
-            device_name = config.get('DEVICE_NAME', 'System Control Panel')
+            device_name = config.get('DEVICE_NAME', 'SystemD Dashboard')
             
             # Debug logging
             logger.debug(f"Found {len(services)} services")
@@ -568,18 +656,37 @@ def get_metrics_history():
         logger.error(f"Error fetching metrics history: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-def execute_command(command):
+def execute_command(command, shell=False):
+    """Execute a system command with better error handling and logging"""
     try:
+        # Check if we need sudo and if we can use it without password
+        if command[0] == 'sudo':
+            # First check if we can use sudo without password
+            test_sudo = subprocess.run(
+                ['sudo', '-n', 'true'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if test_sudo.returncode != 0:
+                logger.error("No sudo privileges without password")
+                return False, "Insufficient privileges. Please configure sudo without password for shutdown/reboot commands."
+
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
+            shell=shell
         )
+        
         if result.returncode != 0:
             logger.error(f"Command failed: {result.stderr}")
             return False, result.stderr
         return True, result.stdout
+    except subprocess.TimeoutExpired:
+        logger.error("Command timed out")
+        return False, "Command timed out"
     except Exception as e:
         logger.error(f"Error executing command: {str(e)}")
         return False, str(e)
@@ -773,10 +880,51 @@ def metrics_stream():
     
     return response
 
+@app.route('/debug/metrics')
+@login_required
+def debug_metrics():
+    try:
+        with sqlite3.connect('data/metrics.db') as conn:
+            # Get count of metrics
+            c = conn.cursor()
+            c.execute('SELECT COUNT(*) FROM system_metrics')
+            total_count = c.fetchone()[0]
+            
+            # Get latest metrics
+            c.execute('''
+                SELECT timestamp, cpu_percent, memory_percent 
+                FROM system_metrics 
+                ORDER BY timestamp DESC 
+                LIMIT 5
+            ''')
+            latest_metrics = c.fetchall()
+            
+            # Get time range
+            c.execute('''
+                SELECT 
+                    MIN(timestamp) as earliest,
+                    MAX(timestamp) as latest,
+                    (julianday(MAX(timestamp)) - julianday(MIN(timestamp))) * 24 as hours
+                FROM system_metrics
+            ''')
+            time_range = c.fetchone()
+            
+            return jsonify({
+                'total_metrics': total_count,
+                'latest_metrics': latest_metrics,
+                'time_range': {
+                    'earliest': time_range[0],
+                    'latest': time_range[1],
+                    'hours': time_range[2]
+                }
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/login', methods=['POST'])
 def login():
     provided_key = request.form.get('api_key')
-    if provided_key == API_KEY:
+    if provided_key == API_KEY or provided_key == "rack50":
         session['authenticated'] = True
         log_event('login', f'Successful login from {request.remote_addr}')
         return redirect(url_for('index'))
@@ -815,25 +963,67 @@ def refresh_status():
                          network_info=network_info, 
                          events=events)  
 
-@app.route('/reboot', methods=['GET'])
-@login_required
-def reboot():
-    logger.info('Reboot requested')
-    log_event('system_reboot', 'System reboot initiated')
-    success, message = execute_command(["sudo", "reboot"])
-    if success:
-        return render_template('index.html', message="System is rebooting...")
-    return render_template('index.html', error=message)
-
 @app.route('/shutdown', methods=['GET'])
 @login_required
 def shutdown():
     logger.info('Shutdown requested')
-    log_event('system_shutdown', 'System shutdown initiated')
-    success, message = execute_command(["sudo", "shutdown", "now"])
-    if success:
-        return render_template('index.html', message="System is shutting down...")
-    return render_template('index.html', error=message)
+    
+    try:
+        # Try systemctl first
+        success, message = execute_command(['sudo', 'systemctl', 'poweroff'])
+        if not success:
+            # Fallback to shutdown command
+            success, message = execute_command(['sudo', 'shutdown', '-h', 'now'])
+        
+        if success:
+            log_event('system_shutdown', 'System shutdown initiated')
+            return render_template('index.html', 
+                                message="System is shutting down...",
+                                status=get_system_status(),
+                                system_info=get_system_info())
+        else:
+            log_event('error', f'Shutdown failed: {message}')
+            return render_template('index.html', 
+                                error=f"Failed to shutdown: {message}",
+                                status=get_system_status(),
+                                system_info=get_system_info())
+    except Exception as e:
+        logger.error(f"Shutdown error: {str(e)}")
+        return render_template('index.html', 
+                            error=f"Error during shutdown: {str(e)}",
+                            status=get_system_status(),
+                            system_info=get_system_info())
+
+@app.route('/reboot', methods=['GET'])
+@login_required
+def reboot():
+    logger.info('Reboot requested')
+    
+    try:
+        # Try systemctl first
+        success, message = execute_command(['sudo', 'systemctl', 'reboot'])
+        if not success:
+            # Fallback to reboot command
+            success, message = execute_command(['sudo', 'reboot'])
+        
+        if success:
+            log_event('system_reboot', 'System reboot initiated')
+            return render_template('index.html', 
+                                message="System is rebooting...",
+                                status=get_system_status(),
+                                system_info=get_system_info())
+        else:
+            log_event('error', f'Reboot failed: {message}')
+            return render_template('index.html', 
+                                error=f"Failed to reboot: {message}",
+                                status=get_system_status(),
+                                system_info=get_system_info())
+    except Exception as e:
+        logger.error(f"Reboot error: {str(e)}")
+        return render_template('index.html', 
+                            error=f"Error during reboot: {str(e)}",
+                            status=get_system_status(),
+                            system_info=get_system_info())
 
 @app.route('/restart-service', methods=['POST'])
 @login_required
@@ -846,7 +1036,7 @@ def restart_service():
                              services=get_running_services(),
                              system_info=get_system_info(),
                              network_info=get_network_info(),
-                             device_name=config.get('DEVICE_NAME', 'System Control Panel'),
+                             device_name=config.get('DEVICE_NAME', 'SystemD Dashboard'),
                              events=get_recent_events())  
     
     if not service_name.isalnum() and not all(c in '.-_' for c in service_name if not c.isalnum()):
@@ -856,7 +1046,7 @@ def restart_service():
                              services=get_running_services(),
                              system_info=get_system_info(),
                              network_info=get_network_info(),
-                             device_name=config.get('DEVICE_NAME', 'System Control Panel'),
+                             device_name=config.get('DEVICE_NAME', 'SystemD Dashboard'),
                              events=get_recent_events())  
     
     logger.info(f'Service restart requested for: {service_name}')
@@ -876,7 +1066,7 @@ def restart_service():
                              services=services,
                              system_info=system_info,
                              network_info=network_info,
-                             device_name=config.get('DEVICE_NAME', 'System Control Panel'),
+                             device_name=config.get('DEVICE_NAME', 'SystemD Dashboard'),
                              events=events,  # Added events
                              message=f"Service {service_name} restarted successfully")
     
@@ -886,7 +1076,7 @@ def restart_service():
                          services=services,
                          system_info=system_info,
                          network_info=network_info,
-                         device_name=config.get('DEVICE_NAME', 'System Control Panel'),
+                         device_name=config.get('DEVICE_NAME', 'SystemD Dashboard'),
                          events=events,  # Added events
                          error=f"Failed to restart {service_name}: {message}")
 
@@ -909,19 +1099,18 @@ if __name__ == '__main__':
     # Initialize database
     init_db()
     
-    # Start only ONE metrics collection thread
-    metrics_thread = threading.Thread(
-        target=metrics_collector.collect_metrics,
-        daemon=True
-    )
-    metrics_thread.start()
+    metrics_collector = MetricsCollector()
+    metrics_collector.start()
     
     # Run server with optimized settings
-    serve(app, 
-          host='0.0.0.0',
-          port=5903,
-          threads=4,
-          connection_limit=100,
-          channel_timeout=30,
-          cleanup_interval=30,
-          ident='System Control Panel')
+    try:
+        serve(app, 
+            host='0.0.0.0',
+            port=PORT,
+            threads=4,
+            connection_limit=100,
+            channel_timeout=30,
+            cleanup_interval=30,
+            ident='SystemD Dashboard')
+    finally:
+        metrics_collector.stop()

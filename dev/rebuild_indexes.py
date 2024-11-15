@@ -1,9 +1,9 @@
 # rebuild_indexes.py
 
 """
-Database Index Rebuild Script for System Control Panel
+Database Index Rebuild Script for SystemD Dashboard
 
-This script rebuilds the SQLite database indexes for the System Control Panel application.
+This script rebuilds the SQLite database indexes for the SystemD Dashboard application.
 It should only be run if you're experiencing database performance issues or after
 manual database modifications.
 

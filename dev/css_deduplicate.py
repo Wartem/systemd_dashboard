@@ -2,8 +2,38 @@ import re
 import sys
 from collections import OrderedDict
 
+"""
+CSS Deduplication and Cleanup Script
+
+This script processes CSS files to remove duplicate selectors while preserving media queries 
+and maintaining proper ordering. It also ensures :root variables remain at the top of the file.
+
+Key features:
+- Removes duplicate CSS selectors, keeping only the last occurrence
+- Preserves and groups media queries at the bottom of the file
+- Maintains :root variables at the top of the file
+- Preserves original formatting and comments within blocks
+- Handles nested structures within media queries
+
+Usage:
+    python css_deduplicate.py input.css output.css
+"""
+
 def parse_css_blocks(css_content):
-    # Split content into blocks while preserving media queries
+    """
+    Parse CSS content into individual blocks while preserving media queries.
+    
+    Args:
+        css_content (str): Raw CSS content to be parsed
+        
+    Returns:
+        list: List of CSS blocks where each block is a complete CSS rule or media query
+        
+    The function handles:
+    - Regular CSS rules
+    - Media queries with nested content
+    - Proper brace matching for nested structures
+    """
     blocks = []
     current_block = ""
     brace_count = 0
@@ -50,11 +80,41 @@ def parse_css_blocks(css_content):
     return blocks
 
 def extract_selector(block):
-    # Extract selector from CSS block
+    """
+    Extract the CSS selector from a block of CSS rules.
+    
+    Args:
+        block (str): A CSS block containing a selector and rules
+        
+    Returns:
+        str: The extracted selector, or None if no valid selector is found
+        
+    Example:
+        Input block: "h1 { color: red; }"
+        Returns: "h1"
+    """
     match = re.match(r'^([^{]+){', block.strip())
     return match.group(1).strip() if match else None
 
 def clean_css(input_file, output_file):
+    """
+    Clean and deduplicate CSS content from input file and write to output file.
+    
+    Args:
+        input_file (str): Path to the input CSS file
+        output_file (str): Path where the cleaned CSS will be written
+        
+    The function:
+    1. Preserves :root variables at the top
+    2. Removes duplicate selectors (keeps last occurrence)
+    3. Groups media queries at the bottom
+    4. Maintains original formatting within blocks
+    
+    File organization:
+    - :root variables (if any)
+    - Regular CSS rules
+    - Media queries
+    """
     # Read the CSS file
     with open(input_file, 'r', encoding='utf-8') as f:
         css_content = f.read()

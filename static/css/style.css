@@ -685,13 +685,14 @@ body {
 }
 
 .action-btn {
-    padding: 10px 16px;
+    padding: 12px 12px;
     border-radius: 6px;
     font-weight: 500;
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
     color: white;
+    font-size: 1rem;
 }
 
 .action-btn:hover {
