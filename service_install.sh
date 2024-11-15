@@ -19,7 +19,7 @@ SERVICE_NAME="systemd_dashboard"
 # Create systemd service file
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
 [Unit]
-Description=Flask Apps Portal
+Description=System Monitor and Management
 After=network-online.target
 Wants=network-online.target
 

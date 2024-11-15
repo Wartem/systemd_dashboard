@@ -142,9 +142,9 @@
                 <div class="actions-card">
                     <h2>System Actions</h2>
                     <div class="action-buttons-container">
-                        <button class="action-btn update" onclick="updateSystem()">
+                        <!--<button class="action-btn update" onclick="updateSystem()">
                             Update System
-                        </button>
+                        </button> -->
                         <button class="action-btn reboot" onclick="handleReboot()">
                             Reboot
                         </button>
@@ -255,33 +255,14 @@
                 window.location.href = "{{ url_for('logout') }}";
             }
 
-            function updateSystem() {
-                if (confirm('Are you sure you want to update the system?')) {
-                    fetch('/system-update', {
-                        method: 'POST',
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.message) {
-                                alert(data.message);
-                                location.reload();
-                            } else {
-                                alert('Error: ' + data.error);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Error updating system');
-                        });
-                }
-            }
         </script>
 
         <!-- Service Logs Modal -->
         <div id="logsModal" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Service Logs: <span id="serviceNameInTitle"></span></h2></h2>
+                    <h2>Service Logs: <span id="serviceNameInTitle"></span></h2>
+                    </h2>
                     <button class="close">&times;</button>
                 </div>
                 <div id="logsContent" class="logs-content"></div>
@@ -321,23 +302,23 @@
 
             // View service logs
             function viewServiceLogs(serviceName) {
-    fetch(`/service-logs/${serviceName}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.logs) {
-                document.getElementById('serviceNameInTitle').textContent = serviceName;
-                document.getElementById('logsContent').innerHTML = 
-                    `<pre>${data.logs.join('\n')}</pre>`;
-                modal.style.display = 'block';
-            } else {
-                alert('Error fetching logs');
+                fetch(`/service-logs/${serviceName}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.logs) {
+                            document.getElementById('serviceNameInTitle').textContent = serviceName;
+                            document.getElementById('logsContent').innerHTML =
+                                `<pre>${data.logs.join('\n')}</pre>`;
+                            modal.style.display = 'block';
+                        } else {
+                            alert('Error fetching logs');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error fetching logs');
+                    });
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error fetching logs');
-        });
-}
 
             // System update
             function updateSystem() {
